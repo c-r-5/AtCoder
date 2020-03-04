@@ -1,0 +1,208 @@
+'.source.nim':
+  'インポート':
+    'prefix':'allimport'
+    'body':'import system,sequtils,strutils,math,algorithm,macros,tables,sets,lists,deques,intsets,critbits,future'
+  '入力':
+    'prefix':'input'
+    'body':'stdin.readLine'
+  '入力1行(数値)':
+    'prefix':'intline'
+    'body':'stdin.readLine.split.map parseInt'
+  '比較関数(import future必要)':
+    'prefix':'comp'
+    'body':'(a,b)=>(if a<b: -1 elif a>b:1 else:0)'
+  'UnionFind':
+    'prefix':'unionfind'
+    'body':"""
+type UnionFind=object
+  table:seq[int]
+proc initUnionFind(n:int):UnionFind=
+  result.table=newSeqWith(n,-1)
+proc root(self:var UnionFind,x:int):int=
+  var y=x
+  while self.table[y]>=0:
+    y=self.table[y]
+  return y
+proc unite(self:var UnionFind,x,y:int)=
+  var
+    s1=self.root x
+    s2=self.root y
+  if s1!=s2:
+    if self.table[s1]>self.table[s2]:
+      s1.swap s2
+    self.table[s1]+=self.table[s2]
+    self.table[s2]=s1
+proc same(self:var UnionFind,x,y:int):bool=
+  self.root(x)==self.root y
+proc size(self:var UnionFind,x:int):int=
+  -self.table[self.root x]
+"""
+  '部分永続UnionFind':
+    'prefix':'ppuf'
+    'body':"""
+proc bisect(s:seq[int],t:int):int=
+  result=s.len
+  var ng= -1
+  while result-ng>1:
+    let mid=(result+ng)div 2
+    if s[mid]>t:result=mid
+    else:ng=mid
+type PPUF=object
+  par,time:seq[int]
+  sizeT,sizeS:seq[seq[int]]
+proc initPPUF(n:int):PPUF=
+  result.par=newSeq[int] n
+  result.par.fill -1
+  result.time=newSeq[int] n
+  result.time.fill 10^12
+  result.sizeT=newSeqWith(n,@[0])
+  result.sizeS=newSeqWith(n,@[1])
+proc root(self:var PPUF,v,t:int):int=
+  result=v
+  while self.time[result]<=t:result=self.par[result]
+proc unite(self:var PPUF,v,w,t:int)=
+  var
+    x=self.root(v,t)
+    y=self.root(w,t)
+  if x==y:return
+  if self.par[y]<self.par[x]:x.swap y
+  self.par[x]+=self.par[y]
+  self.par[y]=x
+  self.size_t[x].add t
+  self.size_s[x].add -self.par[x]
+  self.time[y]=t
+proc size(self:var PPUF,v,t:int):int=
+  let x=self.root(v,t)
+  result=self.size_s[x][bisect(self.size_t[x],t)-1]
+"""
+  'BIT':
+    'prefix':'BIT'
+    'body':"""
+type BIT=object
+  size:int
+  tree:seq[int]
+proc initBIT(n:int):BIT=
+  result.size=n
+  result.tree=newSeq[int] n+1
+proc add(self:var BIT,i,x:int)=
+  var j=i
+  while j<=self.size:
+    self.tree[j]+=x
+    j+=j and -j
+proc sum(self:BIT,i:int):int=
+  var j=i
+  while j>0:
+    result+=self.tree[j]
+    j-=j and -j
+"""
+  'セグ木':
+    'prefix':'segtree'
+    'body':"""
+type SegTree[T]=object
+  n:int
+  data:seq[T]
+  unit:T
+  f:(T,T)->T
+proc initSegTree[T](n:int,unit:T,f:(T,T)->T):SegTree[T]=
+  result.n=n
+  result.data=newSeqWith(n*2,unit)
+  result.unit=unit
+  result.f=f
+proc update[T](self:var SegTree[T],i:int,x:T)=
+  var t=i+self.n
+  self.data[t]=self.f(self.data[t],x)
+  while t>1:
+    t=t div 2
+    self.data[t]=self.f(self.data[t*2],self.data[t*2+1])
+proc query[T](self:var SegTree[T],left,right:int):T=
+  var
+    l=left+self.n
+    r=right+self.n
+    s,t=self.unit
+  while l<r:
+    if(l and 1)==1:
+      s=self.f(s,self.data[l])
+      l+=1
+    if(r and 1)==1:
+      r-=1
+      t=self.f(self.data[r],t)
+    l=l div 2
+    r=r div 2
+  return self.f(s,t)
+"""
+  '二次元セグ木':
+    'prefix':'segtree2d'
+    'body':"""
+# segtreeをこの前に貼る
+proc initSegTree2D[T](h,w:int,unit:T,f:(T,T)->T):SegTree2D[T]=
+  result.h=h
+  result.w=w
+  result.data=newSeqWith(h*2,initSegTree(w,unit,f))
+  result.unit=unit
+  result.f=f
+proc update[T](self:var SegTree2D[T],i,j:int,x:T)=
+  var k=i+self.h
+  self.data[k].update(j,x)
+  while k>1:
+    k=k div 2
+    let
+      s=self.data[k*2].data[j+self.w]
+      t=self.data[k*2+1].data[j+self.w]
+    self.data[k].update(j,self.f(s,t))
+proc add[T](self:var SegTree2D[T],i,j:int,x:T)=
+  var k=i+self.h
+  self.data[k].add(j,x)
+  while k>1:
+    k=k div 2
+    self.data[k].add(j,x)
+proc query[T](self:var SegTree2D[T],down,left,up,right:int):T=
+  var
+    d=down+self.h
+    u=up+self.h
+    s,t=self.unit
+  while d<u:
+    if(d and 1)==1:
+      s=self.f(s,self.data[d].query(left,right))
+      d+=1
+    if(u and 1)==1:
+      u-=1
+      t=self.f(self.data[u].query(left,right),t)
+    d=d div 2
+    u=u div 2
+  return self.f(s,t)
+"""
+  'べき乗余':
+    'prefix':'modpow'
+    'body':"""
+proc pow(a,b,p:int):int=
+  if b==1:return a
+  if b mod 2>0:return pow(a,b-1,p)*a mod p
+  return pow(a,b div 2,p)^2 mod p
+"""
+  '階乗とnCr(フェルマーの小定理)':
+    'prefix':'factorial'
+    'body':"""
+const M=10^9+7
+proc`%`(a,b:int):int=
+  if a<0:(a+(-a div b+1)*b)mod b
+  else:a mod b
+proc pow(a,b,p:int):int=
+  if b==1:a
+  elif b%2>0:pow(a,b-1,p)*a%p
+  else:pow(a,b div 2,p)^2%p
+proc facTable(N:int):(seq[int],seq[int])=
+  var fac=newSeq[int](N+1)
+  fac[0]=1
+  for i in 1..N:fac[i]=fac[i-1]*i%M
+  var inv=newSeq[int](N+1)
+  inv[N]=pow(fac[N],M-2,M)
+  for i in N.countdown 1:inv[i-1]=inv[i]*i%M
+  (fac,inv)
+const MAX_N=10^6*2+2
+# const(fac,inv)=facTable(MAX_N)
+var fac,inv:seq[int]
+(fac,inv)=facTable(MAX_N)
+proc comb(n,k:int):int=
+  if n>=k:fac[n]*inv[n-k]%M*inv[k]%M
+  else:0
+"""
