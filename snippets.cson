@@ -68,12 +68,12 @@ proc unite(self:var PPUF,v,w,t:int)=
   if self.par[y]<self.par[x]:x.swap y
   self.par[x]+=self.par[y]
   self.par[y]=x
-  self.size_t[x].add t
-  self.size_s[x].add -self.par[x]
+  self.sizeT[x].add t
+  self.sizeS[x].add -self.par[x]
   self.time[y]=t
 proc size(self:var PPUF,v,t:int):int=
   let x=self.root(v,t)
-  result=self.size_s[x][bisect(self.size_t[x],t)-1]
+  result=self.sizeS[x][bisect(self.sizeT[x],t)-1]
 """
   'BIT':
     'prefix':'BIT'
@@ -130,6 +130,54 @@ proc query[T](self:var SegTree[T],left,right:int):T=
     r=r div 2
   return self.f(s,t)
 """
+  '双対セグ木':
+    'prefix':'dualsegtree'
+    'body':"""
+type DualSegTree[T]=object
+  n:int
+  data:seq[T]
+  unit:T
+  f:(T,T)->T
+proc initDualSegTree[T](n:int,unit:T,f:(T,T)->T):DualSegTree[T]=
+  result.n=n
+  result.data=newSeq[T] n*2
+  result.data.fill unit
+  result.unit=unit
+  result.f=f
+proc propagate[T](self:var DualSegTree[T],i:int)=
+  var
+    j=i
+    c=0
+  while j>0:
+    j=j div 2
+    c+=1
+  for j in countdown(c-1,1):
+    let k=i shr j
+    if k>=self.n:
+      break
+    self.data[k*2]=self.f(self.data[k*2],self.data[k])
+    self.data[k*2+1]=self.f(self.data[k*2+1],self.data[k])
+    self.data[k]=self.unit
+proc update[T](self:var DualSegTree[T],left,right:int,x:T)=
+  var
+    l=left+self.n
+    r=right+self.n
+  self.propagate l
+  self.propagate r
+  while l<r:
+    if(l and 1)==1:
+      self.data[l]=self.f(self.data[l],x)
+      l+=1
+    if(r and 1)==1:
+      r-=1
+      self.data[r]=self.f(self.data[r],x)
+    l=l div 2
+    r=r div 2
+proc query[T](self:var DualSegTree[T],i:int):T=
+  var j=i+self.n
+  self.propagate(j)
+  return self.data[j]
+"""
   '二次元セグ木':
     'prefix':'segtree2d'
     'body':"""
@@ -171,13 +219,49 @@ proc query[T](self:var SegTree2D[T],down,left,up,right:int):T=
     u=u div 2
   return self.f(s,t)
 """
+  'DisjointSparseTable':
+    'prefix':'disjointsparsetable'
+    'body':"""
+# import sequtils,strutils,math,future
+type DisjointSparseTable[T]=object
+  h:seq[int]
+  data:seq[seq[T]]
+  f:(T,T)->T
+proc initDisjointSparseTable[T](data:seq[T],f:(T,T)->T):DisjointSparseTable[T]=
+  let
+    n=data.len
+    m=int ceil log2 float n
+  result.f=f
+  result.h=newSeq[int] 2^m
+  for i in 2..<2^m:
+    result.h[i]=result.h[i shr 1]+1
+  result.data=newSeq[seq[T]] m
+  result.data[0]=data
+  for i in 1..<m:
+    result.data[i]=newSeq[T] n
+    let w=2^i
+    for j in countup(0,n-1,w*2):
+      let c=n.min j+w
+      result.data[i][c-1]=data[c-1]
+      for k in countdown(c-2,j):
+        result.data[i][k]=data[k].f result.data[i][k+1]
+      if c<n:
+        result.data[i][c]=data[c]
+        for k in c+1..<n.min j+w*2:
+          result.data[i][k]=data[k].f result.data[i][k-1]
+proc get[T](self:DisjointSparseTable[T],l,r:int):T=
+  if l==r-1:return self.data[0][l]
+  let i=self.h[l xor(r-1)]
+  return self.f(self.data[i][l],self.data[i][r-1])
+"""
   'べき乗余':
     'prefix':'modpow'
     'body':"""
 proc pow(a,b,p:int):int=
-  if b==1:return a
-  if b mod 2>0:return pow(a,b-1,p)*a mod p
-  return pow(a,b div 2,p)^2 mod p
+  if b==0:1
+  elif b==1:a
+  elif b mod 2>0:pow(a,b-1,p)*a mod p
+  else:pow(a,b div 2,p)^2 mod p
 """
   '階乗とnCr(フェルマーの小定理)':
     'prefix':'factorial'
@@ -187,7 +271,8 @@ proc`%`(a,b:int):int=
   if a<0:(a+(-a div b+1)*b)mod b
   else:a mod b
 proc pow(a,b,p:int):int=
-  if b==1:a
+  if b==0:1
+  elif b==1:a
   elif b%2>0:pow(a,b-1,p)*a%p
   else:pow(a,b div 2,p)^2%p
 proc facTable(N:int):(seq[int],seq[int])=
